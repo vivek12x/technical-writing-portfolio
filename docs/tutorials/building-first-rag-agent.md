@@ -1,46 +1,47 @@
-# Tutorial: Building Your First Knowledge-Grounded AI Assistant
+# Tutorial: Building a Local Documentation QA Tool with Python and ChromaDB
 
-> **A step-by-step practical guide to building an interactive documentation assistant in Python that cites its sources and refuses to hallucinate.**
-
----
-
-## Overview
-
-In this tutorial, you will construct a fully functional, knowledge-grounded Question & Answering (Q&A) assistant. By the end of this guide, you will have built a Python-based pipeline that:
-
-1. Ingests local markdown documentation files.
-2. Splits documents into semantically coherent chunks with overlap.
-3. Indexes text chunks into a vector store.
-4. Retrieves relevant context when a user asks a question.
-5. Synthesizes a verified, cited response using an LLM.
+A step-by-step guide to building a command-line question-answering tool that indexes markdown files and answers queries using grounded retrieval.
 
 ---
 
-## Prerequisites
+## What You Will Build
 
-Before starting, ensure you have:
-
-- **Python 3.9+** installed on your system.
-- Basic familiarity with running commands in a terminal.
-- An API key for an LLM provider (e.g., OpenAI or compatible API), or a local LLM setup.
-
-Estimated completion time: **15–20 minutes**.
+You will create a lightweight CLI script that:
+1. Parses markdown documentation files from a local directory.
+2. Segments documents into manageable chunks with overlap using `RecursiveCharacterTextSplitter`.
+3. Generates vector embeddings and stores them in an in-memory ChromaDB instance.
+4. Executes similarity queries and constructs a prompt containing retrieved snippets.
+5. Produces an answer citing the specific source file and section, refusing to guess if the answer is missing.
 
 ---
 
-## Step 1: Set Up the Environment
+## System Requirements
 
-Create an isolated directory and install the necessary dependencies:
+- Python 3.9, 3.10, or 3.11.
+- Terminal access (macOS, Linux, or WSL on Windows).
+- An OpenAI API key (or any compatible endpoint supporting the OpenAI standard).
+
+Estimated time: **15 minutes**.
+
+---
+
+## Step 1: Directory Setup and Virtual Environment
+
+Create an isolated project workspace to prevent dependency conflicts with system packages:
 
 ```bash
-mkdir doc-assistant && cd doc-assistant
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-pip install langchain langchain-community langchain-openai chromadb
+mkdir doc-qa-tool && cd doc-qa-tool
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
-Set your API key in your terminal session:
+Install the required libraries:
+
+```bash
+pip install langchain==0.2.16 langchain-community==0.2.16 langchain-openai==0.1.25 chromadb==0.5.5
+```
+
+Export your API key:
 
 ```bash
 export OPENAI_API_KEY="your-api-key-here"
@@ -48,46 +49,46 @@ export OPENAI_API_KEY="your-api-key-here"
 
 ---
 
-## Step 2: Prepare Sample Knowledge Base Documents
+## Step 2: Create Sample Documentation Data
 
-Create a directory named `data/` and add a sample product manual markdown file:
+Create a `docs/` folder to act as our local knowledge base:
 
 ```bash
-mkdir data
+mkdir docs
 ```
 
-Create `data/storage_policy_guide.md`:
+Write sample technical documentation to `docs/backup_runbook.md`:
 
 ```markdown
-# Enterprise Cloud Storage Policies
+# Storage Engine Runbook: Immutability and Retention
 
-## Immutability & Retention Locks
-Retention locks protect backup snapshots from unauthorized modification or early deletion.
-When an administrator enables a Compliance Lock on a storage view, the following rules apply:
-- The retention period cannot be shortened by any user, including root administrators.
-- Files cannot be renamed, overwritten, or truncated until the retention window expires.
-- Legal holds can be placed independently, overriding default expiration timers.
+## Immutability Policies
+Retention locks prevent backup snapshots from being pruned or overwritten before a set duration.
+When an operator activates an Enterprise Lock on a target bucket:
+- The retention period cannot be shortened or cancelled by any role, including cluster root administrators.
+- Object data cannot be modified, renamed, or truncated.
+- The retention policy can only be extended, never decreased.
 
-## Replication Topology
-Replication jobs run asynchronously across geographical regions. 
-- Minimum network bandwidth requirement: 100 Mbps dedicated uplinks.
-- Recovery Point Objective (RPO): Target 15 minutes for critical tier-1 databases.
-- Failover testing can be conducted in sandbox mode without interrupting live production sync.
+## Network Requirements
+Inter-cluster replication runs over port 8443 using mutual TLS (mTLS).
+- Minimum sustained uplink: 250 Mbps for secondary replication targets.
+- Packet loss threshold: Must remain below 0.2%. If packet loss exceeds this, the replication worker throttles to prevent socket starvation.
 ```
 
 ---
 
-## Step 3: Write the Ingestion and Retrieval Pipeline
+## Step 3: Implement the Pipeline
 
-Create a file named `assistant.py` with the following implementation:
+Create `qa_tool.py`:
 
 ```python
 """
-assistant.py
-A minimal, production-pattern RAG pipeline for querying local technical documentation.
+qa_tool.py
+Indexes local markdown files and answers technical questions with source citations.
 """
 
 import os
+import sys
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
@@ -97,85 +98,119 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 
 
-def build_vector_store(data_dir: str = "data") -> Chroma:
-    """Loads documents, chunks text, and stores vectors in an in-memory Chroma database."""
-    print("📂 Loading documentation files...")
-    loader = DirectoryLoader(data_dir, glob="*.md", loader_cls=TextLoader)
-    documents = loader.load()
+def verify_environment():
+    """Ensures necessary environment variables are configured."""
+    if not os.environ.get("OPENAI_API_KEY"):
+        sys.stderr.write("ERROR: OPENAI_API_KEY environment variable is not set.\n")
+        sys.stderr.write("Run: export OPENAI_API_KEY='sk-...'\n")
+        sys.exit(1)
 
-    print(f"📄 Loaded {len(documents)} document(s). Chunking text...")
+
+def build_index(doc_directory: str = "docs") -> Chroma:
+    """Reads markdown files, splits into chunks, and populates ChromaDB."""
+    print(f"[INFO] Scanning directory: {doc_directory}")
+    loader = DirectoryLoader(
+        doc_directory,
+        glob="*.md",
+        loader_cls=TextLoader,
+        loader_kwargs={"autodetect_encoding": True}
+    )
+    raw_documents = loader.load()
+
+    if not raw_documents:
+        raise FileNotFoundError(f"No markdown documents found in '{doc_directory}'.")
+
+    print(f"[INFO] Loaded {len(raw_documents)} file(s). Running recursive splitter...")
+
+    # Chunking: 400 characters (~80-100 tokens) with 50-char overlap
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=400,
         chunk_overlap=50,
         separators=["\n\n", "\n", " ", ""]
     )
-    chunks = splitter.split_documents(documents)
-    print(f"🧩 Created {len(chunks)} chunks.")
+    chunks = splitter.split_documents(raw_documents)
+    print(f"[INFO] Generated {len(chunks)} text chunks.")
 
-    print("🧠 Generating embeddings and populating vector store...")
+    print("[INFO] Computing embeddings and populating ChromaDB index...")
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-    vector_store = Chroma.from_documents(chunks, embeddings)
+    vector_store = Chroma.from_documents(
+        documents=chunks,
+        embedding=embeddings,
+        collection_name="docs_qa"
+    )
     return vector_store
 
 
-def format_docs(docs) -> str:
+def format_context_with_citations(docs) -> str:
     """Formats retrieved document chunks with clear source attribution."""
-    formatted = []
-    for i, doc in enumerate(docs, start=1):
-        source = doc.metadata.get("source", "Unknown Source")
-        formatted.append(f"[Chunk {i} | Source: {source}]\n{doc.page_content}")
-    return "\n\n---\n\n".join(formatted)
+    formatted_chunks = []
+    for idx, doc in enumerate(docs, start=1):
+        source_path = doc.metadata.get("source", "Unknown file")
+        formatted_chunks.append(
+            f"--- Chunk {idx} [Source: {source_path}] ---\n{doc.page_content}"
+        )
+    return "\n\n".join(formatted_chunks)
 
 
 def main():
-    if not os.environ.get("OPENAI_API_KEY"):
-        raise ValueError("Please export OPENAI_API_KEY before running this script.")
+    verify_environment()
 
-    # 1. Build Index
-    vector_store = build_vector_store()
-    retriever = vector_store.as_retriever(search_kwargs={"k": 2})
-
-    # 2. Define System & User Prompt with Grounding Guardrails
-    system_prompt = (
-        "You are an expert technical documentation assistant.\n"
-        "Answer the user's question STRICTLY based on the provided context below.\n"
-        "Guidelines:\n"
-        "1. If the context does not contain the answer, say: 'I cannot find that in the documentation.'\n"
-        "2. Do not speculate or introduce facts outside the context.\n"
-        "3. Cite the chunk number and source at the end of your explanation.\n\n"
-        "Context:\n{context}"
+    # 1. Index documentation
+    vector_store = build_index("docs")
+    retriever = vector_store.as_retriever(
+        search_type="similarity",
+        search_kwargs={"k": 2}
     )
 
-    prompt = ChatPromptTemplate.from_messages([
+    # 2. Strict grounding prompt template
+    system_prompt = (
+        "You are an internal documentation assistant for engineering teams.\n"
+        "Answer the user query based ONLY on the provided context below.\n\n"
+        "Rules:\n"
+        "1. If the provided context does not explicitly contain the answer, reply exactly:\n"
+        "   'This information is not documented in the provided knowledge base.'\n"
+        "2. Do not speculate, extrapolate, or use general outside knowledge.\n"
+        "3. Always cite the file source and chunk index at the end of your answer.\n\n"
+        "Context:\n"
+        "{context}"
+    )
+
+    prompt_template = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", "{question}")
     ])
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
+    llm = ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0.0  # Zero temperature for deterministic responses
+    )
 
-    # 3. Assemble RAG Chain (LCEL)
-    rag_chain = (
-        {"context": retriever | format_docs, "question": RunnablePassthrough()}
-        | prompt
+    # 3. Assemble LCEL chain
+    chain = (
+        {
+            "context": retriever | format_context_with_citations,
+            "question": RunnablePassthrough()
+        }
+        | prompt_template
         | llm
         | StrOutputParser()
     )
 
-    print("\n✅ Knowledge Base Ready! Type 'exit' to quit.\n")
+    print("\n[READY] Documentation QA service initialized. Type 'exit' to quit.\n")
 
-    # 4. Interactive Loop
     while True:
         try:
-            query = input("❓ Ask a documentation question: ").strip()
+            query = input("Query: ").strip()
             if not query:
                 continue
-            if query.lower() in ["exit", "quit", "q"]:
+            if query.lower() in ("exit", "quit", "q"):
                 break
 
-            response = rag_chain.invoke(query)
-            print(f"\n💡 Answer:\n{response}\n")
-            print("-" * 60 + "\n")
-        except KeyboardInterrupt:
+            response = chain.invoke(query)
+            print(f"\nResponse:\n{response}\n")
+            print("=" * 60)
+        except (KeyboardInterrupt, EOFError):
+            print("\nShutting down.")
             break
 
 
@@ -185,57 +220,54 @@ if __name__ == "__main__":
 
 ---
 
-## Step 4: Run and Test the Assistant
+## Step 4: Verification and Test Runs
 
-Launch your script:
+Run the application:
 
 ```bash
-python3 assistant.py
+python3 qa_tool.py
 ```
 
-### Test Case 1: Grounded Factual Query
-**Prompt**:
+### Test Case 1: In-Scope Operational Query
+
 ```text
-❓ Ask a documentation question: Can an admin reduce the retention period under Compliance Lock?
+Query: What is the maximum allowed packet loss for inter-cluster replication?
 ```
 
 **Expected Output**:
 ```text
-💡 Answer:
-No, when an administrator enables a Compliance Lock, the retention period cannot be shortened by any user, including root administrators. Furthermore, files cannot be renamed, overwritten, or truncated until the retention window expires.
+Response:
+The packet loss threshold must remain below 0.2%. If packet loss exceeds this value, the replication worker throttles to prevent socket starvation.
 
-[Source: data/storage_policy_guide.md | Chunk 1]
+Citation: docs/backup_runbook.md (Chunk 2)
+============================================================
 ```
 
-### Test Case 2: Out-of-Scope Query (Verifying Hallucination Guardrail)
-**Prompt**:
+### Test Case 2: Negative Fallback Test (Verifying Grounding)
+
+Test how the model handles a question not covered in `backup_runbook.md`:
+
 ```text
-❓ Ask a documentation question: What is the company's pricing tier for 50 terabytes?
+Query: How do I configure AWS S3 Glacier storage tiering?
 ```
 
 **Expected Output**:
 ```text
-💡 Answer:
-I cannot find that in the documentation.
+Response:
+This information is not documented in the provided knowledge base.
+============================================================
 ```
 
-Notice how the zero-temperature setting combined with negative constraint prompting reliably halts ungrounded guessing.
+The model adheres to rule #1 and halts instead of generating standard AWS documentation from its parametric training data.
 
 ---
 
-## Step 5: Key Takeaways & Best Practices
+## Step 5: Engineering Notes for Productionization
 
-1. **Deterministic Temperature (`0.0`)**: For technical documentation assistants, always set the LLM temperature to `0.0`. Creative variance is harmful when users need exact operational procedures.
-2. **Chunk Attribution**: Always retain file paths and chunk identifiers in metadata. Citing exact sources builds user confidence and simplifies auditing.
-3. **Negative Constraint Directives**: Explicit instructions like *"If the context does not contain the answer, say..."* reduce false confidence by over 90% in retrieval tasks.
+If you adapt this script into an internal microservice:
 
----
-
-## Next Steps
-
-- Explore [Evaluating GenAI Outputs](../how-to-guides/evaluating-llm-outputs.md) to learn how to measure context precision and retrieval recall mathematically.
-- Review our [Semantic Search REST API](../api-reference/semantic-search-api.md) for enterprise client integration patterns.
-
----
+1. **Persistent Vector Storage**: Replace in-memory Chroma with a persistent directory (`persist_directory="./chroma_db"`) or an external service (Qdrant, pgvector) so the index does not re-embed on every process restart.
+2. **Deterministic Embeddings Cache**: Wrap the embedding call with a Redis hash cache keyed by `sha256(chunk_content)` to avoid paying API costs on unchanged files during doc builds.
+3. **CI Integration**: Hook the script into a GitHub Action that re-indexes whenever markdown files change on the `main` branch.
 
 *Authored by Vivek as part of the [Technical Writing Portfolio](https://github.com/vivek12x/technical-writing-portfolio).*

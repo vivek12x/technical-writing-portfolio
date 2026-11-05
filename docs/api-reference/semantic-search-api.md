@@ -73,7 +73,7 @@ curl -X POST "https://api.vectordocs.io/v1/documents/ingest" \
       {
         "document_id": "doc_arch_001",
         "title": "Cloud Snapshot & Immutability Architecture",
-        "content": "Enterprise data protection relies on immutable snapshots. When DataLock is enabled...",
+        "content": "Enterprise data protection relies on immutable snapshots. When an Immutability Lock is enabled...",
         "metadata": {
           "category": "architecture",
           "tier": "enterprise"
@@ -210,3 +210,4 @@ All 4xx and 5xx responses return a consistent error object:
 ---
 
 *Authored by Vivek as part of the [Technical Writing Portfolio](https://github.com/vivek12x/technical-writing-portfolio).*
+

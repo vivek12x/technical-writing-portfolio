@@ -1,61 +1,49 @@
-# Technical Writing & Documentation Portfolio
+# Technical Writing and Documentation Portfolio
 
-> **Bridging complex software architecture, modern AI systems, and intuitive user experiences through clear, empathetic documentation.**
+Technical documentation, architecture write-ups, and developer guides by Vivek.
 
-Welcome! This repository serves as my personal technical writing portfolio and documentation showcase. It demonstrates my approach to explaining sophisticated engineering concepts—specifically centered around **Generative AI, distributed data systems, and API design**—using structured, user-centric documentation principles.
+I am an engineering student with a focus on systems and Generative AI who enjoys writing documentation. Most developers treat documentation as an afterthought once the code is committed. I see documentation as part of the engineering surface area—if developers cannot integrate an API or debug a failure state from the docs, the implementation is incomplete.
+
+This repository collects technical guides, API references, hands-on tutorials, and evaluation workflows I wrote while building and testing retrieval pipelines and developer tools.
 
 ---
 
-## 📑 Portfolio Contents at a Glance
+## Documentation Index
 
-The documentation in this repository is structured according to the **Diátaxis Framework**, ensuring every piece of content addresses a specific reader intent:
+The guides follow the Diataxis documentation structure (Tutorials, How-To Guides, Reference, Explanations):
 
-| Category | Document | Description | Target Audience |
+| Document | Type | Focus | Target Reader |
 | :--- | :--- | :--- | :--- |
-| **Explanation** | [Demystifying Retrieval-Augmented Generation (RAG)](docs/explanations/demystifying-rag.md) | Architectural breakdown of how RAG grounds LLMs on external knowledge, trade-offs, and chunking strategies. | Engineers, Product Managers, Architects |
-| **Explanation** | [Vector Embeddings & Semantic Search](docs/explanations/vector-embeddings.md) | Intuitive conceptual guide translating high-dimensional vector spaces and distance metrics into plain English. | Software Developers, Data Practitioners |
-| **Tutorial** | [Building Your First Grounded AI Assistant](docs/tutorials/building-first-rag-agent.md) | Hands-on, step-by-step tutorial taking developers from an empty directory to a functioning Q&A agent with source citations. | Junior Developers, Hackathon Participants |
-| **How-To Guide** | [Evaluating GenAI Outputs for Accuracy & Groundedness](docs/how-to-guides/evaluating-llm-outputs.md) | Practical recipe for benchmarking hallucination metrics, context precision, and faithfulness in production pipelines. | MLOps Engineers, Tech Leads |
-| **API Reference** | [Semantic Search & Document Ingestion REST API](docs/api-reference/semantic-search-api.md) | Industry-standard API specification including authentication, curl snippets, JSON request/response payloads, and status codes. | API Integrators, Full-Stack Engineers |
-| **Governance** | [Documentation Style Guide & Standards](docs/style-guide/technical-style-guide.md) | Editorial principles, terminology standards, voice & tone rules, and formatting conventions for technical docs. | Technical Writers, Open Source Contributors |
+| [Retrieval-Augmented Generation: Architecture and Failure Modes](docs/explanations/demystifying-rag.md) | Explanation | Chunking trade-offs, vector search mechanics, latency bottlenecks, and real failure modes. | Backend engineers, technical product managers |
+| [Vector Embeddings and Similarity Metrics](docs/explanations/vector-embeddings.md) | Explanation | High-dimensional geometric representation, cosine similarity vs. dot product, and sparse vs. dense search. | Software developers, data engineers |
+| [Building a Grounded Documentation Assistant](docs/tutorials/building-first-rag-agent.md) | Tutorial | End-to-end Python script using ChromaDB and LangChain with strict zero-hallucination prompt constraints. | Developers building their first RAG service |
+| [Measuring Groundedness and Faithfulness in LLM Pipelines](docs/how-to-guides/evaluating-llm-outputs.md) | How-To Guide | Automated evaluation script measuring factual consistency, precision, and regression testing in CI. | MLOps and platform engineers |
+| [REST API Reference: Document Ingestion and Query Service](docs/api-reference/semantic-search-api.md) | Reference | Formal HTTP endpoints, JSON schemas, headers, error states, and curl examples. | Integrators and API consumers |
+| [Engineering Documentation Style Guide](docs/style-guide/technical-style-guide.md) | Standards | Voice and tone, active voice rules, code snippet standards, and pre-merge checklist. | Writers and contributing engineers |
 
 ---
 
-## 💡 Documentation Philosophy
+## Technical Background and Tools
 
-Great documentation is not merely an afterthought to code—it is an essential product feature that drives developer adoption, reduces support overhead, and builds customer trust.
-
-My writing is guided by four foundational tenets:
-
-1. **Audience-First Empathy**: Meet readers where they are. Distinguish clearly between an engineer debugging an API integration at 2 AM and a product leader evaluating architectural viability.
-2. **Progressive Disclosure**: Start with simple mental models and intuitive analogies before introducing formal definitions, edge cases, and mathematical formalisms.
-3. **Docs-as-Code Workflow**: Treat documentation with the same rigor as production code: versioned in Git, peer-reviewed via pull requests, linted for consistency, and continuously deployed.
-4. **Actionable Over Exhaustive**: Prioritize working code examples, realistic sample payloads, and clear troubleshooting paths over wall-to-wall theoretical treatises.
+- **Core Engineering**: Python, REST APIs, JSON schema validation, Git, Bash shell scripting.
+- **AI and Search**: Large Language Models, embeddings, vector indexing (HNSW, ChromaDB, FAISS), hybrid search (BM25 + dense vectors), RAGAS evaluation metrics.
+- **Documentation Toolchain**: Markdown, GitHub Flavored Markdown (GFM), Mermaid diagrams, OpenAPI/Swagger specifications, Vale (prose linting), MkDocs.
 
 ---
 
-## 🛠️ Technical Competencies
+## Structure and Philosophy
 
-- **Documentation Frameworks**: Diátaxis (Tutorials, How-To, Reference, Explanation), Docs-as-Code, Information Architecture.
-- **AI & Emerging Technologies**: Generative AI architectures, Large Language Models (LLMs), RAG pipelines, Vector Databases, Semantic Search, Prompt Engineering, Evaluation frameworks (RAGAS).
-- **Tooling & Formats**: Markdown, GitHub Flavored Markdown (GFM), Mermaid.js diagrams, OpenAPI / Swagger, Postman, Git, MkDocs / VitePress / Docusaurus.
-- **Programming & Scripting**: Python, REST APIs, JSON, Shell scripting, basic TypeScript/JavaScript.
+When writing technical documents, I follow four basic rules:
 
----
-
-## 🚀 Quick Navigation
-
-- 🔍 **Understand the Architecture**: Read [Demystifying RAG](docs/explanations/demystifying-rag.md)
-- 📐 **Learn Vector Geometry**: Read [Vector Embeddings & Semantic Search](docs/explanations/vector-embeddings.md)
-- 🛠️ **Build Something**: Follow the [Grounded AI Assistant Tutorial](docs/tutorials/building-first-rag-agent.md)
-- 📊 **Measure Quality**: Check the [Evaluation How-To Guide](docs/how-to-guides/evaluating-llm-outputs.md)
-- 🔌 **Integrate Services**: Inspect the [API Reference](docs/api-reference/semantic-search-api.md)
-- 📝 **Editorial Standards**: Review the [Style Guide](docs/style-guide/technical-style-guide.md)
+1. **Be direct and skip the fluff.** Avoid marketing buzzwords and filler phrases like "in today's fast-paced digital world." Start directly with the problem definition or prerequisite check.
+2. **Include concrete numbers and trade-offs.** Theoretical discussions without latency figures, memory impacts, or cost comparisons rarely help an engineer make a decision.
+3. **Make code examples runnable.** Every code snippet must run out of the box with realistic inputs, explicit import statements, and expected outputs.
+4. **Design for scanning.** Engineers read documentation while debugging or implementing. Use clear headers, comparative tables, and callouts so the reader finds their answer in under 30 seconds.
 
 ---
 
-## 📬 Contact & Connect
+## Author
 
-- **Author**: Vivek
-- **GitHub**: [@vivek12x](https://github.com/vivek12x)
-- **License**: [MIT License](LICENSE)
+- **Name**: Vivek
+- **GitHub**: [github.com/vivek12x](https://github.com/vivek12x)
+- **License**: MIT
