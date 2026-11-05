@@ -6,6 +6,8 @@ I am an engineering student with a focus on systems and Generative AI who enjoys
 
 This repository collects technical guides, API references, hands-on tutorials, and evaluation workflows I wrote while building and testing retrieval pipelines and developer tools.
 
+For more background on my focus and engineering journey, read my [Background and Personal Statement](ABOUT.md).
+
 ---
 
 ## Documentation Index
